@@ -8,6 +8,7 @@ export interface CadSession {
   components: AssemblyComponent[];
   currentModel: CadModel | null;
   selectedId: string | null;
+  selectedIds: string[];
   isolatedId: string | null;
 }
 
@@ -21,6 +22,7 @@ interface ViewportStore {
   modelUrl: string | null;
   components: AssemblyComponent[];
   selectedId: string | null;
+  selectedIds: string[];
   isolatedId: string | null;
 
   // Viewport UI toggles
@@ -43,6 +45,8 @@ interface ViewportStore {
   toggleGrid: () => void;
   setComponents: (comps: AssemblyComponent[]) => void;
   setSelectedId: (id: string | null) => void;
+  setSelectedIds: (ids: string[]) => void;
+  toggleSelectedId: (id: string) => void;
   setIsolatedId: (id: string | null) => void;
   clearModel: () => void;
 }
@@ -53,6 +57,7 @@ const createDefaultSession = (id: string, name: string): CadSession => ({
   components: [],
   currentModel: null,
   selectedId: null,
+  selectedIds: [],
   isolatedId: null,
 });
 
@@ -66,6 +71,7 @@ export const useViewportStore = create<ViewportStore>()(
       modelUrl: null,
       components: [],
       selectedId: null,
+      selectedIds: [],
       isolatedId: null,
 
       wireframe: false,
@@ -85,6 +91,7 @@ export const useViewportStore = create<ViewportStore>()(
           modelUrl: null,
           components: [],
           selectedId: null,
+          selectedIds: [],
           isolatedId: null,
           revision: s.revision + 1,
         }));
@@ -100,6 +107,7 @@ export const useViewportStore = create<ViewportStore>()(
           modelUrl: session.currentModel ? session.currentModel.stl_url : null,
           components: session.components,
           selectedId: session.selectedId,
+          selectedIds: session.selectedIds || [],
           isolatedId: session.isolatedId,
           revision: s.revision + 1,
         }));
@@ -162,11 +170,40 @@ export const useViewportStore = create<ViewportStore>()(
 
       setSelectedId: (id) => set((s) => {
         const updatedSessions = s.sessions.map((sess) =>
-          sess.id === s.activeSessionId ? { ...sess, selectedId: id } : sess
+          sess.id === s.activeSessionId ? { ...sess, selectedId: id, selectedIds: id ? [id] : [] } : sess
         );
         return {
           sessions: updatedSessions,
           selectedId: id,
+          selectedIds: id ? [id] : [],
+        };
+      }),
+
+      setSelectedIds: (ids) => set((s) => {
+        const primaryId = ids.length > 0 ? ids[ids.length - 1] : null;
+        const updatedSessions = s.sessions.map((sess) =>
+          sess.id === s.activeSessionId ? { ...sess, selectedId: primaryId, selectedIds: ids } : sess
+        );
+        return {
+          sessions: updatedSessions,
+          selectedId: primaryId,
+          selectedIds: ids,
+        };
+      }),
+
+      toggleSelectedId: (id) => set((s) => {
+        const prevIds = s.selectedIds || [];
+        const nextIds = prevIds.includes(id)
+          ? prevIds.filter((x) => x !== id)
+          : [...prevIds, id];
+        const primaryId = nextIds.length > 0 ? nextIds[nextIds.length - 1] : null;
+        const updatedSessions = s.sessions.map((sess) =>
+          sess.id === s.activeSessionId ? { ...sess, selectedId: primaryId, selectedIds: nextIds } : sess
+        );
+        return {
+          sessions: updatedSessions,
+          selectedId: primaryId,
+          selectedIds: nextIds,
         };
       }),
 

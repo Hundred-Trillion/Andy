@@ -17,8 +17,12 @@ ANDY is a state-of-the-art AI-powered aerospace engineering copilot. It acts as 
 *   ⚡ **Non-Flashing Component Rendering**: Per-mesh React Suspense boundaries with gray ghost wireframe placeholder loading. Already loaded geometry remains persistent.
 *   🎨 **Manual Drafting Toolbar**: Glassmorphic floating drawer to instantly drop Box, Cylinder, Sphere, Tube, and Cone primitives.
 *   🔄 **Automatic Collision Spacing**: Automatically offsets newly imported or manual shapes if the coordinate origin is occupied.
-*   📐 **Ctrl + Mouse-Drag 3D Rotation**: Hold the `Ctrl` key and click-and-drag components to rotate them in 3D with 5-degree alignment snapping.
-*   ↕️ **Quick Flip 3D**: Double-click any mesh to isolate it, open its card, and instantly flip it 180° around X, Y, or Z axes.
+*   📐 **Ctrl + Mouse-Drag 3D Rotation**: Hold `Ctrl` and click-drag on parts to rotate them with single-axis locking and 5° snapping.
+*   📦 **Box Mode**: Toggle bounding-box wireframes to see the 3D volume each part occupies.
+*   🔗 **Multi-Select & Targeted Merge**: Hold `Shift` + click parts to multi-select, then merge only the selected subset instead of the entire assembly.
+*   ↕️ **Quick Flip & 90° Snap**: Open any part's edit card (3s long press) for instant ⬅️⬆️⬇️➡️ 90° rotations and ↕↔🔄 180° flips.
+*   ↩️ **50-Step Undo / Redo**: Full history stack across all viewport actions — drag, rotate, create, merge, delete.
+*   📥 **STEP + STL Export**: Download your model in industry-standard STEP (for CAD software) or STL (for 3D printing) directly from the toolbar or chat.
 
 ---
 

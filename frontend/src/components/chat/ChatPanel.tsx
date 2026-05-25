@@ -135,13 +135,19 @@ function ChatMessage({ msg }: { msg: Message }) {
         {msg.content}
         
         {msg.model?.step_url && (
-          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', border: B, borderRadius: 4, background: '#fff' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontWeight: 800, fontSize: 14 }}>
-              <span style={{ fontSize: 18 }}>📄</span> {msg.model.model_id}.step
+          <div style={{ marginTop: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', border: B, borderRadius: 4, background: '#fff', gap: 12 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, fontWeight: 800, fontSize: 14, flex: 1, minWidth: 0 }}>
+              <span style={{ fontSize: 18, flexShrink: 0 }}>📄</span> 
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{msg.model.model_id}</span>
             </div>
-            <a href={msg.model.step_url} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: Y, border: B, borderRadius: 4, color: '#000', textDecoration: 'none', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
-              OPEN FILE <ExternalLink size={14} />
-            </a>
+            <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+              <a href={msg.model.step_url} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: Y, border: B, borderRadius: 4, color: '#000', textDecoration: 'none', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
+                STEP <ExternalLink size={14} />
+              </a>
+              <a href={getModelDownloadUrl(msg.model.model_id, 'stl')} download style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 16px', background: Y, border: B, borderRadius: 4, color: '#000', textDecoration: 'none', fontWeight: 800, fontSize: 12, textTransform: 'uppercase', fontFamily: 'Impact, sans-serif', letterSpacing: '0.05em' }}>
+                STL <ExternalLink size={14} />
+              </a>
+            </div>
           </div>
         )}
       </div>

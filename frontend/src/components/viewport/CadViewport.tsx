@@ -135,6 +135,9 @@ export function CadViewport() {
 
   const selectedId = useViewportStore((s) => s.selectedId);
   const setSelectedId = useViewportStore((s) => s.setSelectedId);
+  const selectedIds = useViewportStore((s) => s.selectedIds || []);
+  const setSelectedIds = useViewportStore((s) => s.setSelectedIds);
+  const toggleSelectedId = useViewportStore((s) => s.toggleSelectedId);
   const isolatedId = useViewportStore((s) => s.isolatedId);
   const setIsolatedId = useViewportStore((s) => s.setIsolatedId);
 
@@ -154,6 +157,9 @@ export function CadViewport() {
   // Undo / Redo Stacks
   const [undoStack, setUndoStack] = useState<AssemblyComponent[][]>([]);
   const [redoStack, setRedoStack] = useState<AssemblyComponent[][]>([]);
+
+  // Box Mode — shows bounding box wireframe for every component
+  const [showBoxMode, setShowBoxMode] = useState(false);
 
   // Dynamic left+right simultaneous mouse button panning
   useEffect(() => {
@@ -263,13 +269,45 @@ export function CadViewport() {
     updateComponentsWithHistory(newComps);
   };
 
-  // Merge all components into one
+  // Merge all or only selected components into one
   const handleMergeAll = async () => {
-    if (components.length < 2) return;
+    // If multiple components are selected, merge only the selected ones!
+    // Otherwise, merge all components in the session.
+    const compsToMerge = selectedIds.length >= 2 
+      ? components.filter(c => selectedIds.includes(c.id))
+      : components;
+
+    if (compsToMerge.length < 2) return;
     try {
-      const resp = await mergeComponents(components);
+      const resp = await mergeComponents(compsToMerge);
       if (resp.model_id && resp.components) {
-        setModel({ ...currentModel!, components: resp.components, stl_url: getModelDownloadUrl(resp.model_id, 'stl'), step_url: getModelDownloadUrl(resp.model_id, 'step'), model_id: resp.model_id, metadata: {} });
+        if (selectedIds.length >= 2) {
+          // In-place replacement: remove selected components and append the new merged components!
+          const remainingComps = components.filter(c => !selectedIds.includes(c.id));
+          const newComps = [...remainingComps, ...resp.components];
+          updateComponentsWithHistory(newComps);
+          setSelectedIds([]);
+          // Force update Model STL/STEP so that it continues to render the fully updated scene cleanly
+          setModel({
+            ...currentModel!,
+            components: newComps,
+            stl_url: getModelDownloadUrl(resp.model_id, 'stl'),
+            step_url: getModelDownloadUrl(resp.model_id, 'step'),
+            model_id: resp.model_id,
+            metadata: {}
+          });
+        } else {
+          // Merged all
+          updateComponentsWithHistory(resp.components);
+          setModel({
+            ...currentModel!,
+            components: resp.components,
+            stl_url: getModelDownloadUrl(resp.model_id, 'stl'),
+            step_url: getModelDownloadUrl(resp.model_id, 'step'),
+            model_id: resp.model_id,
+            metadata: {}
+          });
+        }
       }
     } catch (e: any) { console.error('Merge failed:', e); }
   };
@@ -436,8 +474,8 @@ export function CadViewport() {
             </button>
           )}
           {components.length >= 2 && (
-            <button onClick={handleMergeAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: '#059669', color: '#fff', border: 'none', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
-              <Combine size={11}/> Merge All
+            <button onClick={handleMergeAll} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', background: selectedIds.length >= 2 ? '#b45309' : '#059669', color: '#fff', border: 'none', borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 700, cursor: 'pointer', textTransform: 'uppercase' }}>
+              <Combine size={11}/> {selectedIds.length >= 2 ? `Merge Selected (${selectedIds.length})` : 'Merge All'}
             </button>
           )}
           <button 
@@ -487,12 +525,19 @@ export function CadViewport() {
             ↪️ Redo
           </button>
           <TBtn icon={<Grid3x3 size={12}/>} label="Wireframe" active={wireframe} onClick={toggleWireframe} />
+          <TBtn icon={<Box size={12}/>} label="Box Mode" active={showBoxMode} onClick={() => setShowBoxMode(b => !b)} />
           <TBtn icon={<Ruler size={12}/>} label="Dimensions" active={showDimensions} onClick={toggleDimensions} />
           {currentModel && (
-            <a href={getModelDownloadUrl(currentModel.model_id, 'step')} download
-              style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', border: `1px solid ${B}`, borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, color: '#999', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4 }}>
-              <Download size={11}/> Export
-            </a>
+            <>
+              <a href={getModelDownloadUrl(currentModel.model_id, 'step')} download
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', border: `1px solid ${B}`, borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, color: '#999', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4 }}>
+                <Download size={11}/> STEP
+              </a>
+              <a href={getModelDownloadUrl(currentModel.model_id, 'stl')} download
+                style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', border: `1px solid ${B}`, borderRadius: 4, fontFamily: 'var(--font-mono)', fontSize: 10, fontWeight: 600, color: '#999', textDecoration: 'none', textTransform: 'uppercase', letterSpacing: '0.04em', marginLeft: 4 }}>
+                <Download size={11}/> STL
+              </a>
+            </>
           )}
         </div>
       </div>
@@ -523,11 +568,18 @@ export function CadViewport() {
                   key={`${comp.id}-${revision}`} 
                   comp={comp} 
                   wireframe={wireframe}
+                  showBoxMode={showBoxMode}
                   revision={revision} 
-                  isSelected={selectedId === comp.id}
+                  isSelected={selectedIds.includes(comp.id)}
                   isIsolated={isolatedId === comp.id}
                   visible={!isolatedId || isolatedId === comp.id}
-                  onClick={() => setSelectedId(comp.id)}
+                  onClick={(shiftKey) => {
+                    if (shiftKey) {
+                      toggleSelectedId(comp.id);
+                    } else {
+                      setSelectedId(comp.id);
+                    }
+                  }}
                   onDoubleClick={() => {
                     const nextIsolated = isolatedId === comp.id ? null : comp.id;
                     setIsolatedId(nextIsolated);
@@ -680,9 +732,9 @@ export function CadViewport() {
   );
 }
 
-function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, onClick, onDoubleClick, onUpdate, onClose, onDelete, onDuplicate, onDecompose, onDragStart, onDragEnd, revision }: { 
-  comp: AssemblyComponent; wireframe: boolean; isSelected: boolean; isIsolated: boolean; visible: boolean;
-  onClick: () => void; onDoubleClick: () => void; onUpdate: (c: AssemblyComponent) => void; onClose: () => void; 
+function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated, visible, onClick, onDoubleClick, onUpdate, onClose, onDelete, onDuplicate, onDecompose, onDragStart, onDragEnd, revision }: { 
+  comp: AssemblyComponent; wireframe: boolean; showBoxMode: boolean; isSelected: boolean; isIsolated: boolean; visible: boolean;
+  onClick: (shiftKey?: boolean) => void; onDoubleClick: () => void; onUpdate: (c: AssemblyComponent) => void; onClose: () => void; 
   onDelete: (id: string) => void; onDuplicate: (c: AssemblyComponent) => void; onDecompose: (c: AssemblyComponent) => void;
   onDragStart: () => void; onDragEnd: (newPos: [number, number, number]) => void; revision: number 
 }) {
@@ -829,6 +881,7 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
   };
 
   const lastClickRef = useRef<{ time: number; count: number }>({ time: 0, count: 0 });
+  const clickTimerRef = useRef<any>(null);
   const handleMeshClick = (e: any) => {
     e.stopPropagation();
     clearLongPress();
@@ -844,10 +897,23 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
     }
     lastClickRef.current.time = now;
 
+    // Clear any pending single-click timer
+    if (clickTimerRef.current) {
+      clearTimeout(clickTimerRef.current);
+      clickTimerRef.current = null;
+    }
+
     if (lastClickRef.current.count === 3) {
       // Triple click triggers isolation focus!
       onDoubleClick();
       lastClickRef.current.count = 0;
+    } else if (lastClickRef.current.count === 1) {
+      // Delay single click to allow triple-click detection
+      const shiftKey = !!(e.shiftKey || e.nativeEvent?.shiftKey);
+      clickTimerRef.current = setTimeout(() => {
+        onClick(shiftKey);
+        clickTimerRef.current = null;
+      }, 420);
     }
   };
 
@@ -883,6 +949,19 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
         }
         {(isSelected || isIsolated) && <Edges scale={1.02} threshold={15} color={glowColor} linewidth={isIsolated ? 2 : 1} />}
       </mesh>
+      {showBoxMode && g && (() => {
+        g.computeBoundingBox();
+        const bb = g.boundingBox;
+        if (!bb) return null;
+        const size: [number, number, number] = [bb.max.x - bb.min.x, bb.max.y - bb.min.y, bb.max.z - bb.min.z];
+        const center: [number, number, number] = [(bb.min.x + bb.max.x) / 2, (bb.min.y + bb.max.y) / 2, (bb.min.z + bb.max.z) / 2];
+        return (
+          <mesh position={center}>
+            <boxGeometry args={size} />
+            <meshBasicMaterial color="#f59e0b" wireframe transparent opacity={0.6} />
+          </mesh>
+        );
+      })()}
       
       {isSelected && (
         <Html position={[0, 0, 0]} center zIndexRange={[100, 0]} style={{ pointerEvents: 'all' }}>

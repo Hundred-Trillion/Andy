@@ -1,5 +1,5 @@
 # Environment
-# .env (Intentionally tracked for this private repo)
+.env
 
 # Python
 __pycache__/

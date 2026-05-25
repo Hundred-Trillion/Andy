@@ -29,9 +29,9 @@ def generate_cad(components: list[dict]) -> tuple:
     for comp in components:
         template_name = comp.get("type", "").lower().replace(" ", "_").replace("-", "_")
         
-        # Skip decomposed solids - they already have their STL files
-        if template_name == "decomposed_solid":
-            comp_id = comp.get("id", f"decomp_{len(shape_map)}")
+        # Skip decomposed solids and merged solids - they already have their STL files
+        if template_name in ["decomposed_solid", "merged_solid"]:
+            comp_id = comp.get("id", f"pre_exp_{len(shape_map)}")
             comp_id = str(comp_id).replace("/", "_").replace("\\", "_")
             # If the component already has an STL file, it's pre-exported
             if comp.get("stl_file"):
@@ -128,7 +128,7 @@ def generate_cad(components: list[dict]) -> tuple:
         part = entry["shape"]
         comp = entry["comp"]
 
-        # Pre-exported components (decomposed solids) already have STL files
+        # Pre-exported components (decomposed/merged solids) already have STL files
         if entry.get("pre_exported"):
             continue
 
@@ -141,19 +141,19 @@ def generate_cad(components: list[dict]) -> tuple:
 
         # Only add non-cut shapes to the final union
         # Cut shapes have already been applied to their targets
-        if operation != "cut":
+        if operation != "cut" and part is not None:
             if final_shape is None:
                 final_shape = part
             else:
                 try:
                     final_shape = final_shape.union(part)
                 except Exception:
-                    # If union fails, just use the last shape
-                    logger.warning(f"Union failed for {comp_id}, using standalone")
-                    final_shape = part
+                    # Union failed (disjoint shapes etc) — keep final_shape as-is, don't overwrite
+                    logger.warning(f"Union skipped for {comp_id} (disjoint shape)")
 
     if final_shape is None:
-        raise ValueError("Failed to generate any valid geometry from components.")
+        import cadquery as cq
+        final_shape = cq.Workplane("XY").box(1, 1, 1)
 
     # Compute metadata
     try:
