@@ -881,13 +881,25 @@ function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated
     const onUp = () => {
       if (isRotating) {
         setIsRotating(false);
-        onUpdate({
-          ...comp,
-          rotation: dragRot
-        });
+        if (
+          Math.abs(dragRot[0] - (comp.rotation?.[0] || 0)) > 0.1 ||
+          Math.abs(dragRot[1] - (comp.rotation?.[1] || 0)) > 0.1 ||
+          Math.abs(dragRot[2] - (comp.rotation?.[2] || 0)) > 0.1
+        ) {
+          onUpdate({
+            ...comp,
+            rotation: dragRot
+          });
+        }
       } else {
         setIsDragging(false);
-        onDragEnd(dragPos);
+        if (
+          Math.abs(dragPos[0] - (comp.position?.[0] || 0)) > 0.1 ||
+          Math.abs(dragPos[1] - (comp.position?.[1] || 0)) > 0.1 ||
+          Math.abs(dragPos[2] - (comp.position?.[2] || 0)) > 0.1
+        ) {
+          onDragEnd(dragPos);
+        }
       }
       (gl.domElement as HTMLElement).style.cursor = 'auto';
     };
