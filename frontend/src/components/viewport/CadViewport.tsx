@@ -86,14 +86,14 @@ function SketchGrid() {
       {/* X axis — subtle red */}
       <line>
         <bufferGeometry attach="geometry">
-          <bufferAttribute attach="attributes-position" array={new Float32Array([-10000,0.5,0, 10000,0.5,0])} count={2} itemSize={3} />
+          <bufferAttribute attach="attributes-position" args={[new Float32Array([-10000, 0.5, 0, 10000, 0.5, 0]), 3]} count={2} />
         </bufferGeometry>
         <lineBasicMaterial color="#e57373" transparent opacity={0.6} />
       </line>
       {/* Z axis — subtle blue */}
       <line>
         <bufferGeometry attach="geometry">
-          <bufferAttribute attach="attributes-position" array={new Float32Array([0,0.5,-10000, 0,0.5,10000])} count={2} itemSize={3} />
+          <bufferAttribute attach="attributes-position" args={[new Float32Array([0, 0.5, -10000, 0, 0.5, 10000]), 3]} count={2} />
         </bufferGeometry>
         <lineBasicMaterial color="#64b5f6" transparent opacity={0.6} />
       </line>
@@ -151,17 +151,37 @@ export function CadViewport() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const orbitRef = useRef<any>(null);
 
-  // Manual Toolbar Primitives
-  const handleQuickAdd = async (type: string, defaults: any) => {
-    const pos = findFreePosition(components);
-    const newComp: AssemblyComponent = {
-      id: `${type}_${Math.floor(Math.random() * 10000)}`,
-      type,
-      parameters: { ...defaults },
-      position: pos,
-      rotation: [0, 0, 0],
+  // Undo / Redo Stacks
+  const [undoStack, setUndoStack] = useState<AssemblyComponent[][]>([]);
+  const [redoStack, setRedoStack] = useState<AssemblyComponent[][]>([]);
+
+  // Dynamic left+right simultaneous mouse button panning
+  useEffect(() => {
+    const handleMouse = (e: MouseEvent) => {
+      if (!orbitRef.current) return;
+      // THREE.MOUSE.ROTATE is 0, THREE.MOUSE.PAN is 2
+      if (e.buttons === 3) {
+        // Both left and right mouse buttons are pressed
+        orbitRef.current.mouseButtons.LEFT = 2; // THREE.MOUSE.PAN
+      } else {
+        orbitRef.current.mouseButtons.LEFT = 0; // THREE.MOUSE.ROTATE
+      }
     };
-    const newComps = [...components, newComp];
+    window.addEventListener('mousedown', handleMouse);
+    window.addEventListener('mousemove', handleMouse);
+    window.addEventListener('mouseup', handleMouse);
+    return () => {
+      window.removeEventListener('mousedown', handleMouse);
+      window.removeEventListener('mousemove', handleMouse);
+      window.removeEventListener('mouseup', handleMouse);
+    };
+  }, []);
+
+  const updateComponentsWithHistory = async (newComps: AssemblyComponent[]) => {
+    // Save current components configuration to undo stack
+    setUndoStack(prev => [...prev.slice(-49), components]);
+    setRedoStack([]); // Clear redo stack on new action
+    
     setComponents(newComps);
     try {
       const resp = await generateCad(newComps);
@@ -175,8 +195,72 @@ export function CadViewport() {
         });
       }
     } catch (err) {
-      console.error('Quick add failed:', err);
+      console.error('Update failed:', err);
     }
+  };
+
+  const handleUndo = async () => {
+    if (undoStack.length === 0) return;
+    const previous = undoStack[undoStack.length - 1];
+    const nextUndo = undoStack.slice(0, -1);
+    
+    setRedoStack(prev => [...prev, components]);
+    setUndoStack(nextUndo);
+    
+    setComponents(previous);
+    try {
+      const resp = await generateCad(previous);
+      if (resp.model_id) {
+        setModel({
+          model_id: resp.model_id,
+          components: resp.components || [],
+          stl_url: getModelDownloadUrl(resp.model_id, 'stl'),
+          step_url: getModelDownloadUrl(resp.model_id, 'step'),
+          metadata: {},
+        });
+      }
+    } catch (err) {
+      console.error('Undo failed:', err);
+    }
+  };
+
+  const handleRedo = async () => {
+    if (redoStack.length === 0) return;
+    const next = redoStack[redoStack.length - 1];
+    const nextRedo = redoStack.slice(0, -1);
+    
+    setUndoStack(prev => [...prev, components]);
+    setRedoStack(nextRedo);
+    
+    setComponents(next);
+    try {
+      const resp = await generateCad(next);
+      if (resp.model_id) {
+        setModel({
+          model_id: resp.model_id,
+          components: resp.components || [],
+          stl_url: getModelDownloadUrl(resp.model_id, 'stl'),
+          step_url: getModelDownloadUrl(resp.model_id, 'step'),
+          metadata: {},
+        });
+      }
+    } catch (err) {
+      console.error('Redo failed:', err);
+    }
+  };
+
+  // Manual Toolbar Primitives
+  const handleQuickAdd = async (type: string, defaults: any) => {
+    const pos = findFreePosition(components);
+    const newComp: AssemblyComponent = {
+      id: `${type}_${Math.floor(Math.random() * 10000)}`,
+      type,
+      parameters: { ...defaults },
+      position: pos,
+      rotation: [0, 0, 0],
+    };
+    const newComps = [...components, newComp];
+    updateComponentsWithHistory(newComps);
   };
 
   // Merge all components into one
@@ -356,6 +440,52 @@ export function CadViewport() {
               <Combine size={11}/> Merge All
             </button>
           )}
+          <button 
+            onClick={handleUndo} 
+            disabled={undoStack.length === 0} 
+            title="Undo Last Action" 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 10px',
+              border: '2px solid #000000',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 700,
+              background: undoStack.length === 0 ? '#f1f5f9' : '#ffffff',
+              color: undoStack.length === 0 ? '#cbd5e1' : '#000000',
+              cursor: undoStack.length === 0 ? 'default' : 'pointer',
+              opacity: undoStack.length === 0 ? 0.5 : 1,
+              transition: 'all 0.1s ease',
+            }}
+          >
+            ↩️ Undo
+          </button>
+          <button 
+            onClick={handleRedo} 
+            disabled={redoStack.length === 0} 
+            title="Redo Next Action" 
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              padding: '4px 10px',
+              border: '2px solid #000000',
+              borderRadius: 4,
+              fontFamily: 'var(--font-mono)',
+              fontSize: 10,
+              fontWeight: 700,
+              background: redoStack.length === 0 ? '#f1f5f9' : '#ffffff',
+              color: redoStack.length === 0 ? '#cbd5e1' : '#000000',
+              cursor: redoStack.length === 0 ? 'default' : 'pointer',
+              opacity: redoStack.length === 0 ? 0.5 : 1,
+              transition: 'all 0.1s ease',
+            }}
+          >
+            ↪️ Redo
+          </button>
           <TBtn icon={<Grid3x3 size={12}/>} label="Wireframe" active={wireframe} onClick={toggleWireframe} />
           <TBtn icon={<Ruler size={12}/>} label="Dimensions" active={showDimensions} onClick={toggleDimensions} />
           {currentModel && (
@@ -404,32 +534,26 @@ export function CadViewport() {
                   }}
                   onUpdate={(updatedComp) => {
                     const newComps = components.map(c => c.id === updatedComp.id ? updatedComp : c);
-                    generateCad(newComps).then(resp => {
-                      if (resp.model_id) setModel({...currentModel!, components: resp.components || [], stl_url: getModelDownloadUrl(resp.model_id, 'stl'), step_url: getModelDownloadUrl(resp.model_id, 'step')});
-                    }).catch(console.error);
+                    updateComponentsWithHistory(newComps);
                   }}
                   onClose={() => setSelectedId(null)}
                   onDelete={(id) => {
                      const newComps = components.filter(c => c.id !== id);
                      setSelectedId(null);
                      if (newComps.length === 0) {
+                       setUndoStack(prev => [...prev.slice(-49), components]);
+                       setRedoStack([]);
+                       setComponents([]);
                        clearModel();
                      } else {
-                       setComponents(newComps);
-                       generateCad(newComps).then(resp => {
-                         if (resp.model_id) {
-                           setModel({...currentModel!, components: resp.components || [], stl_url: getModelDownloadUrl(resp.model_id, 'stl'), step_url: getModelDownloadUrl(resp.model_id, 'step')});
-                         }
-                       }).catch(console.error);
+                       updateComponentsWithHistory(newComps);
                      }
                   }}
                   onDuplicate={(compToCopy) => {
                      const pos = findFreePosition(components);
                      const newComp = { ...compToCopy, id: `part_${Date.now()}`, position: pos as [number, number, number] };
                      const newComps = [...components, newComp];
-                     generateCad(newComps).then(resp => {
-                       if (resp.model_id) setModel({...currentModel!, components: resp.components || [], stl_url: getModelDownloadUrl(resp.model_id, 'stl'), step_url: getModelDownloadUrl(resp.model_id, 'step')});
-                     }).catch(console.error);
+                     updateComponentsWithHistory(newComps);
                   }}
                   onDecompose={async (comp) => {
                     const filePath = comp.parameters?.file_path || comp.stl_file;
@@ -442,7 +566,7 @@ export function CadViewport() {
                           position: [comp.position[0] + (i % 5) * 150, comp.position[1], comp.position[2] + Math.floor(i / 5) * 150],
                         }));
                         const newComps = components.filter(c => c.id !== comp.id).concat(newParts);
-                        setComponents(newComps);
+                        updateComponentsWithHistory(newComps);
                       }
                     } catch (e: any) {
                       console.error('Decompose failed:', e);
@@ -453,10 +577,7 @@ export function CadViewport() {
                     setDraggingId(null);
                     if (orbitRef.current) orbitRef.current.enabled = true;
                     const newComps = components.map(c => c.id === comp.id ? { ...c, position: newPos } : c);
-                    setComponents(newComps);
-                    generateCad(newComps).then(resp => {
-                      if (resp.model_id) setModel({...currentModel!, components: resp.components || [], stl_url: getModelDownloadUrl(resp.model_id, 'stl'), step_url: getModelDownloadUrl(resp.model_id, 'step')});
-                    }).catch(console.error);
+                    updateComponentsWithHistory(newComps);
                   }}
                 />
               </Suspense>
@@ -590,11 +711,26 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
     setDragRot([...(comp.rotation || [0,0,0])] as [number, number, number]);
     setDirty(false);
   }, [comp.parameters, comp.position, comp.rotation]);
-  
+
+  // Long press for 3 seconds to toggle parametric mode
+  const longPressTimer = useRef<any>(null);
+  const clearLongPress = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }, []);
+
   // Drag handlers
   const handlePointerDown = useCallback((e: any) => {
-    if (e.button !== 0 || isSelected) return; // only left click, not when popup open
+    if (e.button !== 0) return; // only left click
     e.stopPropagation();
+
+    // Start 3-second long press timer
+    clearLongPress();
+    longPressTimer.current = setTimeout(() => {
+      onClick(); // triggers selection / parametric popup card
+    }, 3000);
     
     if (e.ctrlKey) {
       setIsRotating(true);
@@ -607,22 +743,27 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
       onDragStart();
       (gl.domElement as HTMLElement).style.cursor = 'grabbing';
     }
-  }, [gl, onDragStart, isSelected, comp.rotation]);
+  }, [gl, onDragStart, comp.rotation, onClick, clearLongPress]);
 
   useEffect(() => {
     if (!isDragging && !isRotating) return;
     const onMove = (e: PointerEvent) => {
+      clearLongPress();
       if (isRotating) {
         const deltaX = e.clientX - startPointer.x;
         const deltaY = e.clientY - startPointer.y;
         
-        // 0.5 degrees per pixel dragged
-        const newRotY = startRot[1] + deltaX * 0.5;
-        const newRotX = startRot[0] + deltaY * 0.5;
+        let snapX = startRot[0];
+        let snapY = startRot[1];
         
-        // Snap to nearest 5 degrees for professional CAD alignment feel
-        const snapY = Math.round(newRotY / 5) * 5;
-        const snapX = Math.round(newRotX / 5) * 5;
+        // Single-axis alignment locking: rotate Y (yaw) for horizontal drag, X (pitch) for vertical drag
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          const newRotY = startRot[1] + deltaX * 0.5;
+          snapY = Math.round(newRotY / 5) * 5;
+        } else {
+          const newRotX = startRot[0] + deltaY * 0.5;
+          snapX = Math.round(newRotX / 5) * 5;
+        }
         
         const nextRot: [number, number, number] = [snapX, snapY, startRot[2]];
         setDragRot(nextRot);
@@ -687,6 +828,29 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
     setDirty(false);
   };
 
+  const lastClickRef = useRef<{ time: number; count: number }>({ time: 0, count: 0 });
+  const handleMeshClick = (e: any) => {
+    e.stopPropagation();
+    clearLongPress();
+    
+    if (isDragging || isRotating) return;
+
+    const now = Date.now();
+    const diff = now - lastClickRef.current.time;
+    if (diff < 400) {
+      lastClickRef.current.count += 1;
+    } else {
+      lastClickRef.current.count = 1;
+    }
+    lastClickRef.current.time = now;
+
+    if (lastClickRef.current.count === 3) {
+      // Triple click triggers isolation focus!
+      onDoubleClick();
+      lastClickRef.current.count = 0;
+    }
+  };
+
   // Glow color: purple when isolated, yellow when selected, default otherwise
   const glowColor = isIsolated ? '#6366f1' : Y;
   const meshColor = isSelected ? '#ffffff' : isIsolated ? '#e8e0ff' : '#cbd5e1';
@@ -707,10 +871,11 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
         geometry={g} 
         castShadow 
         onPointerDown={handlePointerDown}
-        onClick={(e) => { if (!isDragging && !isRotating) { e.stopPropagation(); onClick(); } }}
-        onDoubleClick={(e) => { e.stopPropagation(); onDoubleClick(); }}
+        onPointerUp={clearLongPress}
+        onPointerCancel={clearLongPress}
+        onClick={handleMeshClick}
         onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = isRotating ? 'ew-resize' : isDragging ? 'grabbing' : 'grab'; }}
-        onPointerOut={() => { if (!isDragging && !isRotating) document.body.style.cursor = 'auto'; }}
+        onPointerOut={() => { clearLongPress(); if (!isDragging && !isRotating) document.body.style.cursor = 'auto'; }}
       >
         {wireframe 
           ? <meshBasicMaterial color={Y} wireframe transparent opacity={0.5} /> 
@@ -780,7 +945,7 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
                     value={editPos[idx]}
                     onChange={(e) => {
                       const newPos = [...editPos];
-                      newPos[idx] = e.target.value;
+                      newPos[idx] = parseFloat(e.target.value) || 0;
                       setEditPos(newPos);
                       setDirty(true);
                     }}
@@ -790,43 +955,91 @@ function InteractiveModel({ comp, wireframe, isSelected, isIsolated, visible, on
                 </div>
               ))}
             </div>
-
-            {/* Quick Flip 3D */}
-            <div style={{ fontSize: 8, fontWeight: 700, color: '#999', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 8, marginBottom: 4 }}>Quick Flip 3D</div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nextRot: [number, number, number] = [((comp.rotation?.[0] || 0) + 180) % 360, comp.rotation?.[1] || 0, comp.rotation?.[2] || 0];
-                  onUpdate({ ...comp, rotation: nextRot });
-                }}
-                title="Flip vertically (pitch)"
-                style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
-              >
-                ↕ Flip X
-              </button>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, ((comp.rotation?.[1] || 0) + 180) % 360, comp.rotation?.[2] || 0];
-                  onUpdate({ ...comp, rotation: nextRot });
-                }}
-                title="Flip horizontally (yaw)"
-                style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
-              >
-                ↔ Flip Y
-              </button>
-              <button 
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, comp.rotation?.[1] || 0, ((comp.rotation?.[2] || 0) + 180) % 360];
-                  onUpdate({ ...comp, rotation: nextRot });
-                }}
-                title="Flip sideways (roll)"
-                style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
-              >
-                🔄 Flip Z
-              </button>
+            <div style={{ fontSize: 8, fontWeight: 700, color: '#999', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 8, marginBottom: 4 }}>Align / Rotate 90°</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, ((comp.rotation?.[1] || 0) - 90) % 360, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Rotate Left 90° (Y Axis)"
+                  style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ⬅️ Left 90°
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, ((comp.rotation?.[1] || 0) + 90) % 360, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Rotate Right 90° (Y Axis)"
+                  style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ➡️ Right 90°
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [((comp.rotation?.[0] || 0) + 90) % 360, comp.rotation?.[1] || 0, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Rotate Up 90° (X Axis)"
+                  style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ⬆️ Up 90°
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [((comp.rotation?.[0] || 0) - 90) % 360, comp.rotation?.[1] || 0, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Rotate Down 90° (X Axis)"
+                  style={{ flex: 1, padding: '4px', background: '#f1f5f9', border: '1px solid #e2e8f0', borderRadius: 4, color: '#000', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ⬇️ Down 90°
+                </button>
+              </div>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [((comp.rotation?.[0] || 0) + 180) % 360, comp.rotation?.[1] || 0, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Flip 180° X"
+                  style={{ flex: 1, padding: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 4, color: '#475569', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ↕ Flip X
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, ((comp.rotation?.[1] || 0) + 180) % 360, comp.rotation?.[2] || 0];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Flip 180° Y"
+                  style={{ flex: 1, padding: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 4, color: '#475569', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  ↔ Flip Y
+                </button>
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const nextRot: [number, number, number] = [comp.rotation?.[0] || 0, comp.rotation?.[1] || 0, ((comp.rotation?.[2] || 0) + 180) % 360];
+                    onUpdate({ ...comp, rotation: nextRot });
+                  }}
+                  title="Flip 180° Z"
+                  style={{ flex: 1, padding: '4px', background: '#f8fafc', border: '1px solid #cbd5e1', borderRadius: 4, color: '#475569', fontSize: 9, fontFamily: 'var(--font-mono)', cursor: 'pointer' }}
+                >
+                  🔄 Flip Z
+                </button>
+              </div>
             </div>
 
             {/* Action buttons row 1: Apply + Copy + Delete */}

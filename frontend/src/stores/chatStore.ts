@@ -14,7 +14,6 @@ interface ChatStore {
   sendMessage: (content: string) => Promise<void>;
   addUserMessage: (content: string) => void;
   addAssistantMessage: (content: string, model?: CadModel, references?: ReferenceDoc[], statusMessages?: StatusMessage[]) => void;
-  addAssistantMessage: (content: string, model?: CadModel, references?: ReferenceDoc[], statusMessages?: StatusMessage[]) => void;
   updateLastAssistantStatus: (status: StatusMessage) => void;
   clearMessages: () => void;
   toggleCasualMode: () => void;

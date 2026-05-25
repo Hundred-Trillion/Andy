@@ -2,6 +2,10 @@
 
 ANDY is a state-of-the-art AI-powered aerospace engineering copilot. It acts as a **"Cursor for Aerospace CAD Engineering"**, combining professional manual CAD drafting with local AI-driven design synthesis.
 
+> [!IMPORTANT]
+> **🎮 Viewport Gestures & Controls Manual**:
+> Looking for shortcut keys, mouse gestures, or manual 3D alignment tricks? Read the full operational manual in [Guide.md](Guide.md) to master interactive viewport control!
+
 > [!TIP]
 > **🚀 Don't have a 96GB GPU cluster?** You can run ANDY entirely in the cloud with standard consumer hardware using OpenRouter or cloud API keys in under 2 minutes! See the [Cloud/Online Execution Guide (onlineguide.md)](onlineguide.md) to get started immediately.
 
