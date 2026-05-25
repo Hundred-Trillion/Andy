@@ -134,7 +134,22 @@ def generate_cad(components: list[dict]) -> tuple:
 
         # Export individual component STL
         try:
-            comp["stl_file"] = export_component(part, comp_id)
+            export_part = part
+            if export_part is not None and not entry.get("pre_exported"):
+                pos = comp.get("position", [0.0, 0.0, 0.0])
+                rot = comp.get("rotation", [0.0, 0.0, 0.0])
+                pos = [float(p) for p in pos]
+                rot = [float(r) for r in rot]
+                
+                # Inverse translate
+                if any(p != 0 for p in pos):
+                    export_part = export_part.translate([-p for p in pos])
+                # Inverse rotate (reverse order: Z, Y, X)
+                if rot[2] != 0: export_part = export_part.rotate((0,0,0), (0,0,1), -rot[2])
+                if rot[1] != 0: export_part = export_part.rotate((0,0,0), (0,1,0), -rot[1])
+                if rot[0] != 0: export_part = export_part.rotate((0,0,0), (1,0,0), -rot[0])
+
+            comp["stl_file"] = export_component(export_part, comp_id)
         except Exception as e:
             logger.warning(f"Failed to export {comp_id}: {e}")
             continue

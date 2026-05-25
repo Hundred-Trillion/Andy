@@ -34,7 +34,7 @@ const C = {
 /* ── Pencil-sketch graph paper grid ─────────────────────────── */
 function SketchGrid() {
   const minor = useMemo(() => {
-    const size = 20000;
+    const size = 100000;
     const half = size / 2;
     const step = 100; // minor lines every 100mm
     const pos: number[] = [];
@@ -48,7 +48,7 @@ function SketchGrid() {
   }, []);
 
   const major = useMemo(() => {
-    const size = 20000;
+    const size = 100000;
     const half = size / 2;
     const step = 500; // major lines every 500mm
     const pos: number[] = [];
@@ -158,6 +158,8 @@ export function CadViewport() {
   const [undoStack, setUndoStack] = useState<AssemblyComponent[][]>([]);
   const [redoStack, setRedoStack] = useState<AssemblyComponent[][]>([]);
 
+  const [isProcessing, setIsProcessing] = useState(false);
+
   // Box Mode — shows bounding box wireframe for every component
   const [showBoxMode, setShowBoxMode] = useState(false);
 
@@ -189,6 +191,7 @@ export function CadViewport() {
     setRedoStack([]); // Clear redo stack on new action
     
     setComponents(newComps);
+    setIsProcessing(true);
     try {
       const resp = await generateCad(newComps);
       if (resp.model_id) {
@@ -202,6 +205,8 @@ export function CadViewport() {
       }
     } catch (err) {
       console.error('Update failed:', err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -214,6 +219,7 @@ export function CadViewport() {
     setUndoStack(nextUndo);
     
     setComponents(previous);
+    setIsProcessing(true);
     try {
       const resp = await generateCad(previous);
       if (resp.model_id) {
@@ -227,6 +233,8 @@ export function CadViewport() {
       }
     } catch (err) {
       console.error('Undo failed:', err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -239,6 +247,7 @@ export function CadViewport() {
     setRedoStack(nextRedo);
     
     setComponents(next);
+    setIsProcessing(true);
     try {
       const resp = await generateCad(next);
       if (resp.model_id) {
@@ -252,6 +261,8 @@ export function CadViewport() {
       }
     } catch (err) {
       console.error('Redo failed:', err);
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -278,6 +289,7 @@ export function CadViewport() {
       : components;
 
     if (compsToMerge.length < 2) return;
+    setIsProcessing(true);
     try {
       const resp = await mergeComponents(compsToMerge);
       if (resp.model_id && resp.components) {
@@ -309,7 +321,11 @@ export function CadViewport() {
           });
         }
       }
-    } catch (e: any) { console.error('Merge failed:', e); }
+    } catch (e: any) { 
+      console.error('Merge failed:', e); 
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   // Render all components to avoid React Three Fiber unmounting/re-layout glitches. Visibility is controlled downstream.
@@ -544,6 +560,13 @@ export function CadViewport() {
 
       {/* ── 3D Scene ─────────────────────────────────────── */}
       <div style={{ flex: 1, position: 'relative', background: '#f5f3ef' }}>
+        {isProcessing && (
+          <div style={{ position: 'absolute', top: 20, left: '50%', transform: 'translateX(-50%)', background: Y, border: `2px solid ${B}`, borderRadius: 8, padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 8, zIndex: 50, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+            <div style={{ width: 12, height: 12, border: '2px solid #000', borderTopColor: 'transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <style>{`@keyframes spin { 100% { transform: rotate(360deg); } }`}</style>
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, fontWeight: 800, color: '#000', textTransform: 'uppercase' }}>Generating CAD...</span>
+          </div>
+        )}
         <Canvas
           camera={{ position: [300, 200, 300], fov: 45, near: 0.1, far: 200000 }}
           gl={{ antialias: true, alpha: false }}
@@ -750,6 +773,7 @@ function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated
   const [startRot, setStartRot] = useState<number[]>([0, 0, 0]);
   const [startPointer, setStartPointer] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [dragRot, setDragRot] = useState<[number, number, number]>([...(comp.rotation || [0,0,0])] as [number, number, number]);
+  const [activeRotAxis, setActiveRotAxis] = useState<'X' | 'Y' | null>(null);
 
   const groupRef = useRef<THREE.Group>(null);
   const { camera, gl } = useThree();
@@ -776,6 +800,9 @@ function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated
   // Drag handlers
   const handlePointerDown = useCallback((e: any) => {
     if (e.button !== 0) return; // only left click
+    // Prevent intercepting if they are holding both left+right to pan the camera
+    if (e.buttons === 3) return;
+    
     e.stopPropagation();
 
     // Start 3-second long press timer
@@ -786,6 +813,7 @@ function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated
     
     if (e.ctrlKey) {
       setIsRotating(true);
+      setActiveRotAxis(null);
       setStartRot([...(comp.rotation || [0, 0, 0])]);
       setStartPointer({ x: e.clientX, y: e.clientY });
       onDragStart(); // disable OrbitControls
@@ -808,11 +836,19 @@ function InteractiveModel({ comp, wireframe, showBoxMode, isSelected, isIsolated
         let snapX = startRot[0];
         let snapY = startRot[1];
         
+        let newActiveAxis = activeRotAxis;
+        if (!newActiveAxis) {
+          if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
+            newActiveAxis = Math.abs(deltaX) > Math.abs(deltaY) ? 'Y' : 'X';
+            setActiveRotAxis(newActiveAxis);
+          }
+        }
+        
         // Single-axis alignment locking: rotate Y (yaw) for horizontal drag, X (pitch) for vertical drag
-        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+        if (newActiveAxis === 'Y') {
           const newRotY = startRot[1] + deltaX * 0.5;
           snapY = Math.round(newRotY / 5) * 5;
-        } else {
+        } else if (newActiveAxis === 'X') {
           const newRotX = startRot[0] + deltaY * 0.5;
           snapX = Math.round(newRotX / 5) * 5;
         }

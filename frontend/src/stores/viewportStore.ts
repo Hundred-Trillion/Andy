@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import type { CadModel, AssemblyComponent } from '@/lib/types';
 
 export interface CadSession {
   id: string;
@@ -33,6 +32,7 @@ interface ViewportStore {
 
   // Session Actions
   addSession: (name?: string) => void;
+  startFreshSession: () => void;
   switchSession: (id: string) => void;
   closeSession: (id: string) => void;
   renameSession: (id: string, name: string) => void;
@@ -95,6 +95,14 @@ export const useViewportStore = create<ViewportStore>()(
           isolatedId: null,
           revision: s.revision + 1,
         }));
+      },
+
+      startFreshSession: () => {
+        const s = get();
+        // If the active session is empty, we don't need a new one
+        if (s.components.length > 0) {
+          s.addSession();
+        }
       },
 
       switchSession: (id) => {
