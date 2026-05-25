@@ -8,12 +8,20 @@
 # Ensure you have conda activated: conda activate vllm-env
 
 # ──────────────────────────────────────────
+# LOAD CONFIG FROM .env
+# ──────────────────────────────────────────
+if [ -f .env ]; then
+  VLLM_MODEL_PATH=$(grep -E "^VLLM_MODEL_PATH=" .env | cut -d'=' -f2-)
+  VLLM_PYTHON_PATH=$(grep -E "^VLLM_PYTHON_PATH=" .env | cut -d'=' -f2-)
+fi
+
+# ──────────────────────────────────────────
 # MODEL SELECTION (uncomment ONE section)
 # ──────────────────────────────────────────
 
 # ── Option A: Qwen 72B GPTQ-Int4 (RECOMMENDED) ──
 # Best quality for 96GB. ~36GB weights + ~56GB KV cache headroom.
-MODEL_PATH="/home/doaid/vllm_env/LLMMODELS/queen"
+MODEL_PATH="${VLLM_MODEL_PATH:-/path/to/your/Qwen2.5-72B-Instruct-GPTQ-Int4}"
 MODEL_NAME="qwen72b"
 NUM_GPUS=2
 MAX_MODEL_LEN=16384    # 16K context — good for complex assemblies
@@ -21,11 +29,13 @@ MAX_NUM_SEQS=4         # 4 concurrent requests (CAD copilot is single-user)
 
 # ── Option B: Qwen 9B (lightweight, fast) ──
 # Use this if you need fast iteration or are debugging.
-# MODEL_PATH="/home/doaid/vllm_env/LLMMODELS/Qwen9B"
+# MODEL_PATH="${VLLM_MODEL_PATH:-/path/to/your/Qwen2.5-14B-Instruct-GPTQ-Int4}"
 # MODEL_NAME="qwen9b"
 # NUM_GPUS=1
 # MAX_MODEL_LEN=32768
 # MAX_NUM_SEQS=8
+
+PYTHON_EXEC="${VLLM_PYTHON_PATH:-python}"
 
 # ──────────────────────────────────────────
 # vLLM SERVER CONFIGURATION
@@ -46,7 +56,7 @@ echo ""
 
 export VLLM_USE_V1=0
 
-/home/doaid/miniconda3/envs/vllm-env/bin/python -m vllm.entrypoints.openai.api_server \
+"$PYTHON_EXEC" -m vllm.entrypoints.openai.api_server \
   --model "$MODEL_PATH" \
   --served-model-name "$MODEL_NAME" \
   --tensor-parallel-size $NUM_GPUS \
