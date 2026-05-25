@@ -126,6 +126,8 @@ You are managing a 3D CAD assembly.
 The user wants to generate, add, or modify geometry.
 Update the current assembly list to fulfill the user's request.
 
+⚠️ ABSOLUTE CREATIVE FREEDOM: If the user asks for a complex assembly (e.g. "build a rocket", "jet engine", "airplane", "space station", etc.), DO NOT output a simple single box or cylinder! You have the freedom to combine, stack, scale, align, rotate, and subtract (using operations) as many primitives (e.g., tubes, nose_cones, swept_fins, cylinders, boxes, spheres, brackets, bulkheads) as needed to construct a highly detailed, professional-grade 3D model!
+
 Available templates/primitives:
 {templates_info}
 
@@ -176,6 +178,8 @@ Rules:
 - You CAN modify imported reference models: change their position, rotation, or apply boolean cuts to them.
 - When user says "move X", "rotate X", "make X bigger/smaller", update the relevant component's position/rotation/parameters.
 - When auto-placing new parts, offset position so they don't overlap existing components (use spacing of ~150mm).
+- Vertically Stacked Shapes (e.g. rockets, towers): Align them along their X/Y centers and offset their Z positions by their respective lengths so they cleanly touch (e.g. cylinder 1 of length 200 at [0,0,0], cylinder 2 of length 100 at [0,0,200], nose cone of length 150 at [0,0,300]).
+- Radially Displaced Parts (e.g. fins, wings): Distribute them evenly by applying symmetric yaw rotations (Z-axis) and radial displacement offsets (e.g., fin 1 at [0, 40, 20] with rotation [0,0,0], fin 2 at [40, 0, 20] with rotation [0,0,90], fin 3 at [0, -40, 20] with rotation [0,0,180], fin 4 at [-40, 0, 20] with rotation [0,0,270]).
 """
 
     try:

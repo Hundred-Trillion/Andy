@@ -73,6 +73,14 @@ async def decompose(request: DecomposeRequest):
         if request.file_path:
             # Import from file path
             full_path = os.path.join(project_root, request.file_path)
+            
+            # Auto-resolve STL path to matching STEP file if it exists
+            if full_path.lower().endswith('.stl'):
+                step_path = full_path.rsplit('.', 1)[0] + '.step'
+                if os.path.exists(step_path):
+                    logger.info(f"Auto-resolved STL path '{full_path}' to matching STEP file '{step_path}' for rich decomposition!")
+                    full_path = step_path
+
             if not os.path.exists(full_path):
                 raise HTTPException(status_code=404, detail=f"File not found: {request.file_path}")
             
@@ -80,17 +88,24 @@ async def decompose(request: DecomposeRequest):
             if ext in ['step', 'stp']:
                 cq_shape = cq.importers.importStep(full_path)
                 source_label = os.path.basename(full_path)
+            elif ext == 'stl':
+                cq_shape = cq.importers.importSTL(full_path)
+                source_label = os.path.basename(full_path)
             else:
-                raise HTTPException(status_code=400, detail=f"Decompose only supports STEP files (.step, .stp). Got: .{ext}")
+                raise HTTPException(status_code=400, detail=f"Decompose only supports STEP (.step, .stp) and STL (.stl) files. Got: .{ext}")
         
         elif request.component_id:
-            # Try to find the component's STL/STEP in generated dir
+            # Try to find the component's STEP or STL in generated dir
             step_candidates = list(out_dir.glob(f"*{request.component_id}*.step"))
+            stl_candidates = list(out_dir.glob(f"*{request.component_id}*.stl"))
             if step_candidates:
                 cq_shape = cq.importers.importStep(str(step_candidates[0]))
                 source_label = request.component_id
+            elif stl_candidates:
+                cq_shape = cq.importers.importSTL(str(stl_candidates[0]))
+                source_label = request.component_id
             else:
-                raise HTTPException(status_code=404, detail=f"No STEP file found for component: {request.component_id}")
+                raise HTTPException(status_code=404, detail=f"No STEP or STL file found for component: {request.component_id}")
         else:
             raise HTTPException(status_code=400, detail="Provide either file_path or component_id")
         
