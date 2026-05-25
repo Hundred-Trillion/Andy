@@ -1,0 +1,18 @@
+services:
+  # ── FastAPI Backend ─────────────────────────────────────────
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    container_name: andy-backend
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend/app:/app/app
+      - ../generated:/app/generated
+      - ../data:/app/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

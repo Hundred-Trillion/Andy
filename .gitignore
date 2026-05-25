@@ -1,0 +1,36 @@
+# Environment
+# .env (Intentionally tracked for this private repo)
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+venv/
+.venv/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Generated CAD files
+generated/
+
+# IDE
+.vscode/
+.idea/
+
+# Docker
+qdrant_storage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Large CAD assets
+References/
+
+# Zip archives
+*.zip

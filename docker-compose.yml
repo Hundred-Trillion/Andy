@@ -1,0 +1,68 @@
+version: "3.8"
+
+services:
+  # 1. Vector Database (Qdrant)
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: andy_qdrant
+    ports:
+      - "6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    restart: unless-stopped
+
+  # 2. Python Backend (FastAPI + LangGraph + CadQuery)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: andy_backend
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount the generated CAD files so they persist
+      - ./generated:/app/generated
+      # Mount the References folder so the AI can see your STEP files
+      - ./References:/app/References
+    env_file:
+      - .env
+    environment:
+      # Tell backend where to find the local Qdrant container
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6333
+      # We tell it to talk to vLLM running on the host machine.
+      # 'host.docker.internal' reaches the host machine from inside the container.
+      - OPENROUTER_BASE_URL=http://host.docker.internal:8080/v1
+    depends_on:
+      - qdrant
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  # 3. Frontend (Vite + React)
+  frontend:
+    # Use standard Node image
+    image: node:20-alpine
+    container_name: andy_frontend
+    working_dir: /app
+    volumes:
+      # Mount the frontend code dynamically
+      - ./frontend:/app
+    ports:
+      - "5173:5173"
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    # Command to run dev server
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    depends_on:
+      - backend
+
+volumes:
+  qdrant_data:
+
+# Note: The vLLM server is NOT included in this docker-compose!
+# Because vLLM requires raw access to the A6000 GPUs, it is much easier
+# and more performant to run it directly on the host using your virtual environment.
+# 
+# How to run everything:
+# Terminal 1: bash start_vllm.sh
+# Terminal 2: docker-compose up -d

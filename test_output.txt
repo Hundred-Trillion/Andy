@@ -1,0 +1,43 @@
+Thinking Process:
+
+1.  **Analyze the Request:**
+    *   Role: CAD Engineer.
+    *   Task: Reply with ONLY valid JSON representing a single box.
+    *   Format: `[{"id": "part1", "type": "box", "parameters": {"length": 10, "width": 10, "height": 10}, "position": [0,0,0], "rotation": [0,0,0]}]`
+    *   Constraint: ONLY valid JSON. No markdown, no explanations, no extra text.
+
+2.  **Verify the Format:**
+    *   The user provided a specific JSON structure example.
+    *   I need to ensure the output is strictly valid JSON.
+    *   I need to ensure there are no surrounding markdown code blocks (like ```json ... ```).
+    *   I need to ensure there are no conversational fillers.
+
+3.  **Construct the JSON:**
+    *   `id`: "part1"
+    *   `type`: "box"
+    *   `parameters`: `{"length": 10, "width": 10, "height": 10}`
+    *   `position`: `[0, 0, 0]`
+    *   `rotation`: `[0, 0, 0]`
+    *   Wrap in an array: `[...]`
+
+4.  **Final Check:**
+    *   Is it valid JSON? Yes.
+    *   Is it a single box? Yes.
+    *   Is there any extra text? No.
+    *   Does it match the requested format? Yes.
+
+5.  **Output Generation:**
+    *   Produce the raw JSON string.
+
+    ```json
+    [{"id": "part1", "type": "box", "parameters": {"length": 10, "width": 10, "height": 10}, "position": [0, 0, 0], "rotation": [0, 0, 0]}]
+    ```
+    *Wait, I must not include the markdown code blocks.* Just the raw text.
+
+    Raw text:
+    [{"id": "part1", "type": "box", "parameters": {"length": 10, "width": 10, "height": 10}, "position": [0, 0, 0], "rotation": [0, 0, 0]}]
+
+6.  **Final Decision:** Output the raw JSON string only.cw
+</think>
+
+[{"id": "part1", "type": "box", "parameters": {"length": 10, "width": 10, "height": 10}, "position": [0, 0, 0], "rotation": [0, 0, 0]}]

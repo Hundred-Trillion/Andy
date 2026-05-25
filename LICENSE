@@ -1,0 +1,38 @@
+Business Source License 1.1
+Licensor: Hundred-Trillion
+Development Copy: https://github.com/Hundred-Trillion/Andy
+
+Parameters:
+* Change License: Apache License, Version 2.0 (as published by the Apache Software Foundation)
+* Change Date: May 25, 2030
+* Additional Use Grant: You may make non-commercial personal, educational, academic, and evaluation use of the Licensed Work. You may copy, modify, and contribute to the Licensed Work for these purposes. You may not use the Licensed Work for any commercial production, hosting services, or direct for-profit distribution.
+
+--------------------------------------------------------------------------------
+
+LICENSE TERMS
+
+1. Grant of License.
+
+Subject to the terms and conditions of this License, Licensor hereby grants you a non-exclusive, non-transferable, royalty-free, worldwide license to use, copy, modify, and distribute the Licensed Work, solely as permitted by the Additional Use Grant above.
+
+2. License Restrictions.
+
+Except as expressly authorized in Section 1:
+- You may not use the Licensed Work for commercial purposes, including but not limited to, providing commercial cloud services, SaaS hosting, or commercial products utilizing the Licensed Work.
+- You must retain all copyright and patent notices in the Licensed Work.
+
+3. Change to Apache License 2.0.
+
+On the Change Date, or on any earlier date designated by the Licensor, the Licensed Work will automatically transition to the Apache License, Version 2.0. From that date onward, your use of the Licensed Work will be governed by the Apache License 2.0.
+
+4. Intellectual Property and Contributions.
+
+By submitting contributions (including pull requests, edits, and code) to the repository, you grant the Licensor a perpetual, irrevocable, worldwide, royalty-free, non-exclusive license to use, copy, modify, and distribute your contributions under these same terms.
+
+5. Termination.
+
+If you breach any terms of this License, your rights under this License terminate automatically.
+
+6. Disclaimer of Warranty.
+
+THE LICENSED WORK IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE LICENSOR BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE LICENSED WORK.

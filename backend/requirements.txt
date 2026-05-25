@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-dotenv
+pydantic>=2.0
+pydantic-settings
+cadquery
+langchain>=0.3
+langchain-openai
+langgraph
+httpx
+aiofiles
+python-multipart
